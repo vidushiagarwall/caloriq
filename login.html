@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Log In — CaloriQ</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">CaloriQ</a>
+  <div class="nav-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="tracker.html">Food Tracker</a>
+    <a href="planner.html">Goal Planner</a>
+    <a href="progress.html">Progress</a>
+  </div>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="dashboard.html">Dashboard</a>
+  <a href="tracker.html">Food Tracker</a>
+  <a href="planner.html">Goal Planner</a>
+  <a href="progress.html">Progress</a>
+</div>
+
+<div class="auth-wrap">
+  <h1>Welcome back</h1>
+  <p class="sub">Log in to continue your health journey.</p>
+
+  <div class="card">
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="Your email" />
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="Your password" />
+    </div>
+    <button class="btn btn-green btn-full" onclick="logIn()">Log in</button>
+  </div>
+
+  <div class="auth-switch">Don't have an account? <a href="signup.html">Sign up</a></div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { FIREBASE_CONFIG } from "./firebase-config.js";
+
+  const app = initializeApp(FIREBASE_CONFIG);
+  const auth = getAuth(app);
+
+  window.logIn = async function () {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const errEl = document.getElementById('errorMsg');
+    errEl.style.display = 'none';
+
+    if (!email || !password) {
+      errEl.textContent = 'Please fill in all fields.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      window.location.href = 'dashboard.html';
+    } catch (e) {
+      errEl.textContent = 'Incorrect email or password.';
+      errEl.style.display = 'block';
+    }
+  };
+</script>
+<script>
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+</script>
+</body>
+</html>

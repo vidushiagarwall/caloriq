@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Goal Planner — CaloriQ</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">CaloriQ</a>
+  <div class="nav-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="tracker.html">Food Tracker</a>
+    <a href="planner.html" class="active">Goal Planner</a>
+    <a href="progress.html">Progress</a>
+  </div>
+  <div class="nav-user">
+    <span id="navName"></span>
+    <button onclick="logOut()">Log out</button>
+  </div>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="dashboard.html">Dashboard</a>
+  <a href="tracker.html">Food Tracker</a>
+  <a href="planner.html">Goal Planner</a>
+  <a href="progress.html">Progress</a>
+  <a href="#" onclick="logOut()">Log out</a>
+</div>
+
+<div class="page" style="max-width:680px;">
+  <h1 style="font-size:1.4rem;font-weight:700;margin-bottom:6px;">Goal Planner</h1>
+  <p style="color:var(--muted);font-size:0.88rem;margin-bottom:24px;">Enter your details to calculate your personalised calorie plan.</p>
+
+  <div class="card">
+    <h2>Your details</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Age</label>
+        <input type="number" id="age" placeholder="Age" min="10" max="100" oninput="calculate()" />
+      </div>
+      <div class="form-group">
+        <label>Gender</label>
+        <select id="gender" onchange="calculate()">
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Height (cm)</label>
+        <input type="number" id="height" placeholder="cm" oninput="calculate()" />
+      </div>
+      <div class="form-group">
+        <label>Current weight (kg)</label>
+        <input type="number" id="weight" placeholder="kg" oninput="calculate()" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Activity level</label>
+      <select id="activity" onchange="calculate()">
+        <option value="1.2">Sedentary (little or no exercise)</option>
+        <option value="1.375">Lightly active (1–3 days/week)</option>
+        <option value="1.55" selected>Moderately active (3–5 days/week)</option>
+        <option value="1.725">Very active (6–7 days/week)</option>
+        <option value="1.9">Extra active (physical job + training)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Goal</label>
+      <div class="goal-cards">
+        <div class="goal-card selected" data-goal="lose" onclick="selectGoal(this)">
+          <div class="icon">📉</div>
+          <div class="name">Lose weight</div>
+          <div class="desc">Calorie deficit</div>
+        </div>
+        <div class="goal-card" data-goal="maintain" onclick="selectGoal(this)">
+          <div class="icon">⚖️</div>
+          <div class="name">Maintain</div>
+          <div class="desc">Stay at same weight</div>
+        </div>
+        <div class="goal-card" data-goal="gain" onclick="selectGoal(this)">
+          <div class="icon">📈</div>
+          <div class="name">Gain weight</div>
+          <div class="desc">Calorie surplus</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="deficitGroup">
+      <div class="form-group">
+        <label>Daily calorie <span id="deficitLabel">deficit</span>: <strong id="deficitDisplay">500</strong> kcal</label>
+        <input type="range" id="deficit" min="100" max="1000" step="50" value="500" oninput="updateDeficit(this.value); calculate();" style="width:100%;accent-color:var(--green);" />
+        <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--muted);margin-top:4px;">
+          <span>100 kcal (slow)</span><span>1000 kcal (aggressive)</span>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Target weight (kg)</label>
+          <input type="number" id="targetWeight" placeholder="kg" oninput="calculate()" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="card" id="results" style="display:none;">
+    <h2>Your calorie plan</h2>
+    <div class="stat-grid">
+      <div class="stat-chip"><div class="value" id="resBMR">—</div><div class="label">BMR (kcal)</div></div>
+      <div class="stat-chip"><div class="value" id="resTDEE">—</div><div class="label">Maintenance (kcal)</div></div>
+      <div class="stat-chip"><div class="value" id="resTarget">—</div><div class="label">Your daily target</div></div>
+      <div class="stat-chip"><div class="value" id="resBMI">—</div><div class="label">BMI</div></div>
+    </div>
+
+    <div class="alert alert-green" id="weeklyAlert" style="margin-top:4px;"></div>
+    <div class="alert alert-orange" id="timeAlert" style="margin-top:8px;display:none;"></div>
+
+    <div style="margin-top:20px;">
+      <h2>Recommended macros</h2>
+      <div class="macro-bar-wrap">
+        <div class="bar-label"><span>Protein</span><span id="rProtein">—</span></div>
+        <div class="bar"><div class="bar-fill protein" style="width:100%"></div></div>
+      </div>
+      <div class="macro-bar-wrap" style="margin-top:12px;">
+        <div class="bar-label"><span>Carbohydrates</span><span id="rCarbs">—</span></div>
+        <div class="bar"><div class="bar-fill carbs" style="width:100%"></div></div>
+      </div>
+      <div class="macro-bar-wrap" style="margin-top:12px;">
+        <div class="bar-label"><span>Fat</span><span id="rFat">—</span></div>
+        <div class="bar"><div class="bar-fill fat" style="width:100%"></div></div>
+      </div>
+    </div>
+
+    <button class="btn btn-green" style="margin-top:20px;" onclick="saveToProfile()">Save this plan to my profile</button>
+    <span id="savedMsg" style="color:var(--green);font-size:0.85rem;margin-left:12px;display:none;">Saved!</span>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { FIREBASE_CONFIG } from "./firebase-config.js";
+
+  const app = initializeApp(FIREBASE_CONFIG);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  let uid = null;
+
+  window.logOut = async () => { await signOut(auth); window.location.href = 'index.html'; };
+
+  onAuthStateChanged(auth, async user => {
+    if (user) {
+      uid = user.uid;
+      document.getElementById('navName').textContent = user.displayName || '';
+      const snap = await getDoc(doc(db, 'users', uid));
+      if (snap.exists()) {
+        const p = snap.data();
+        if (p.age) document.getElementById('age').value = p.age;
+        if (p.gender) document.getElementById('gender').value = p.gender;
+        if (p.height) document.getElementById('height').value = p.height;
+        if (p.weight) document.getElementById('weight').value = p.weight;
+        if (p.activity) document.getElementById('activity').value = p.activity;
+        if (p.targetWeight) document.getElementById('targetWeight').value = p.targetWeight;
+        if (p.goal) {
+          document.querySelectorAll('.goal-card').forEach(c => c.classList.remove('selected'));
+          document.querySelector(`[data-goal="${p.goal}"]`)?.classList.add('selected');
+          currentGoal = p.goal;
+          updateGoalUI();
+        }
+      }
+    }
+    calculate();
+  });
+
+  let currentGoal = 'lose';
+
+  window.selectGoal = function(card) {
+    document.querySelectorAll('.goal-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    currentGoal = card.dataset.goal;
+    updateGoalUI();
+    calculate();
+  };
+
+  function updateGoalUI() {
+    const show = currentGoal !== 'maintain';
+    document.getElementById('deficitGroup').style.display = show ? '' : 'none';
+    document.getElementById('deficitLabel').textContent = currentGoal === 'gain' ? 'surplus' : 'deficit';
+  }
+
+  window.updateDeficit = function(v) {
+    document.getElementById('deficitDisplay').textContent = v;
+  };
+
+  window.calculate = function() {
+    const age = +document.getElementById('age').value;
+    const gender = document.getElementById('gender').value;
+    const height = +document.getElementById('height').value;
+    const weight = +document.getElementById('weight').value;
+    const activity = +document.getElementById('activity').value;
+    const deficit = +document.getElementById('deficit').value;
+    const targetWeight = +document.getElementById('targetWeight').value;
+
+    if (!age || !height || !weight) { document.getElementById('results').style.display = 'none'; return; }
+
+    const bmr = Math.round(gender === 'male'
+      ? 10 * weight + 6.25 * height - 5 * age + 5
+      : 10 * weight + 6.25 * height - 5 * age - 161);
+    const tdee = Math.round(bmr * activity);
+    const target = currentGoal === 'lose' ? tdee - deficit : currentGoal === 'gain' ? tdee + deficit : tdee;
+    const bmi = (weight / ((height / 100) ** 2)).toFixed(1);
+
+    document.getElementById('resBMR').textContent = bmr;
+    document.getElementById('resTDEE').textContent = tdee;
+    document.getElementById('resTarget').textContent = target;
+    document.getElementById('resBMI').textContent = bmi;
+
+    const kgPerWeek = currentGoal !== 'maintain' ? (deficit * 7 / 7700).toFixed(2) : 0;
+    const weeklyEl = document.getElementById('weeklyAlert');
+    const timeEl = document.getElementById('timeAlert');
+
+    if (currentGoal === 'maintain') {
+      weeklyEl.textContent = `Eat ${target} kcal/day to maintain your current weight.`;
+      timeEl.style.display = 'none';
+    } else {
+      const dir = currentGoal === 'lose' ? 'lose' : 'gain';
+      weeklyEl.textContent = `At a ${deficit} kcal ${currentGoal === 'lose' ? 'deficit' : 'surplus'}, you will ${dir} approximately ${kgPerWeek} kg per week.`;
+
+      if (targetWeight && targetWeight !== weight) {
+        const diff = Math.abs(weight - targetWeight);
+        const weeks = Math.round(diff / +kgPerWeek);
+        const months = (weeks / 4.33).toFixed(1);
+        timeEl.textContent = `To ${dir} ${diff} kg (reach ${targetWeight} kg): ~${weeks} weeks (${months} months).`;
+        timeEl.style.display = '';
+      } else {
+        timeEl.style.display = 'none';
+      }
+    }
+
+    // Macros
+    const protein = currentGoal === 'gain' ? Math.round(weight * 2) : Math.round(weight * 1.6);
+    const fat = Math.round(target * 0.25 / 9);
+    const carbs = Math.round((target - protein * 4 - fat * 9) / 4);
+    document.getElementById('rProtein').textContent = protein + 'g/day';
+    document.getElementById('rCarbs').textContent = carbs + 'g/day';
+    document.getElementById('rFat').textContent = fat + 'g/day';
+
+    document.getElementById('results').style.display = '';
+    window._planData = { age, gender, height, weight, activity, goal: currentGoal, targetWeight, tdee, deficit, target };
+  };
+
+  window.saveToProfile = async function() {
+    if (!uid || !window._planData) return;
+    await setDoc(doc(db, 'users', uid), { ...window._planData, updatedAt: Date.now() }, { merge: true });
+    document.getElementById('savedMsg').style.display = 'inline';
+    setTimeout(() => document.getElementById('savedMsg').style.display = 'none', 2500);
+  };
+</script>
+<script>
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+</script>
+</body>
+</html>

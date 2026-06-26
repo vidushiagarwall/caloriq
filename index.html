@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CaloriQ — Track Your Health Journey</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">CaloriQ</a>
+  <div class="nav-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="tracker.html">Food Tracker</a>
+    <a href="planner.html">Goal Planner</a>
+    <a href="progress.html">Progress</a>
+  </div>
+  <div class="nav-user" id="navUser">
+    <a class="btn btn-outline" href="login.html" style="padding:6px 16px;font-size:0.88rem;">Log in</a>
+    <a class="btn btn-green" href="signup.html" style="padding:6px 16px;font-size:0.88rem;">Sign up</a>
+  </div>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="dashboard.html">Dashboard</a>
+  <a href="tracker.html">Food Tracker</a>
+  <a href="planner.html">Goal Planner</a>
+  <a href="progress.html">Progress</a>
+  <a href="login.html">Log in</a>
+  <a href="signup.html">Sign up</a>
+</div>
+
+<div class="hero">
+  <h1>Your personal<br /><span>health journey</span> starts here</h1>
+  <p>Track calories, plan your goal, and see exactly how long your weight loss or gain will take — all in one place.</p>
+  <div class="hero-btns">
+    <a class="btn btn-green" href="signup.html">Get started — it's free</a>
+    <a class="btn btn-outline" href="planner.html">Try the calculator</a>
+  </div>
+</div>
+
+<div class="features">
+  <div class="feature-card">
+    <div class="icon">🔥</div>
+    <h3>Calorie Tracking</h3>
+    <p>Log every meal from our database of Indian & Western foods, or enter ingredients by grams.</p>
+  </div>
+  <div class="feature-card">
+    <div class="icon">🎯</div>
+    <h3>Goal Planner</h3>
+    <p>Set a lose, gain, or maintain goal. See your predicted weight week by week.</p>
+  </div>
+  <div class="feature-card">
+    <div class="icon">🥗</div>
+    <h3>Macro Targets</h3>
+    <p>Get personalised protein, carb, and fat targets — adjusted for vegetarian or non-veg diets.</p>
+  </div>
+  <div class="feature-card">
+    <div class="icon">📈</div>
+    <h3>Progress Timeline</h3>
+    <p>A full week-by-week prediction of where you'll be based on your current plan.</p>
+  </div>
+</div>
+
+<script>
+  function toggleMenu() {
+    document.getElementById('mobileMenu').classList.toggle('open');
+  }
+</script>
+</body>
+</html>

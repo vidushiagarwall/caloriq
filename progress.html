@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Progress — CaloriQ</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">CaloriQ</a>
+  <div class="nav-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="tracker.html">Food Tracker</a>
+    <a href="planner.html">Goal Planner</a>
+    <a href="progress.html" class="active">Progress</a>
+  </div>
+  <div class="nav-user">
+    <span id="navName"></span>
+    <button onclick="logOut()">Log out</button>
+  </div>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="dashboard.html">Dashboard</a>
+  <a href="tracker.html">Food Tracker</a>
+  <a href="planner.html">Goal Planner</a>
+  <a href="progress.html">Progress</a>
+  <a href="#" onclick="logOut()">Log out</a>
+</div>
+
+<div class="page">
+  <h1 style="font-size:1.4rem;font-weight:700;margin-bottom:6px;">Progress</h1>
+  <p style="color:var(--muted);font-size:0.88rem;margin-bottom:24px;">Your predicted weight journey based on your current plan.</p>
+
+  <!-- Summary chips -->
+  <div class="stat-grid" style="margin-bottom:20px;">
+    <div class="stat-chip"><div class="value" id="chipStart">—</div><div class="label">Starting weight (kg)</div></div>
+    <div class="stat-chip"><div class="value" id="chipTarget">—</div><div class="label">Target weight (kg)</div></div>
+    <div class="stat-chip"><div class="value" id="chipDiff">—</div><div class="label">To <span id="chipDir">lose</span> (kg)</div></div>
+    <div class="stat-chip"><div class="value" id="chipWeeks">—</div><div class="label">Estimated weeks</div></div>
+  </div>
+
+  <!-- Weekly prediction table -->
+  <div class="card">
+    <h2>Week-by-week prediction</h2>
+    <p style="font-size:0.82rem;color:var(--muted);margin-bottom:16px;">Based on a <span id="deficitNote">500</span> kcal daily <span id="dirNote">deficit</span>. Actual results vary.</p>
+    <div style="overflow-x:auto;">
+      <table class="prog-table" id="progTable">
+        <thead>
+          <tr>
+            <th>Week</th>
+            <th>Date</th>
+            <th>Predicted weight (kg)</th>
+            <th>Change</th>
+          </tr>
+        </thead>
+        <tbody id="progBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Log actual weight -->
+  <div class="card">
+    <h2>Log today's weight</h2>
+    <p style="font-size:0.85rem;color:var(--muted);margin-bottom:14px;">Track your real weight to compare against predictions.</p>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <input type="number" id="actualWeight" placeholder="kg" step="0.1" style="width:100px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-size:0.95rem;" />
+      <button class="btn btn-green" onclick="logWeight()">Log weight</button>
+      <span id="weightSaved" style="color:var(--green);font-size:0.85rem;display:none;">Saved!</span>
+    </div>
+  </div>
+
+  <!-- Actual weight history -->
+  <div class="card" id="historyCard" style="display:none;">
+    <h2>Weight history</h2>
+    <table class="prog-table">
+      <thead><tr><th>Date</th><th>Weight (kg)</th><th>vs prediction</th></tr></thead>
+      <tbody id="historyBody"></tbody>
+    </table>
+  </div>
+
+  <div class="card" id="noProfileMsg" style="display:none;">
+    <p style="color:var(--muted);font-size:0.9rem;">No plan found. <a href="planner.html" style="color:var(--green);">Set up your goal planner</a> first.</p>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, collection, addDoc, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { FIREBASE_CONFIG } from "./firebase-config.js";
+
+  const app = initializeApp(FIREBASE_CONFIG);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  let uid = null;
+  let profileData = null;
+
+  window.logOut = async () => { await signOut(auth); window.location.href = 'index.html'; };
+
+  onAuthStateChanged(auth, async user => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    uid = user.uid;
+    document.getElementById('navName').textContent = user.displayName || '';
+
+    const snap = await getDoc(doc(db, 'users', uid));
+    if (!snap.exists() || !snap.data().tdee) {
+      document.getElementById('noProfileMsg').style.display = '';
+      document.getElementById('progTable').style.display = 'none';
+      return;
+    }
+
+    profileData = snap.data();
+    buildTable(profileData);
+    loadWeightHistory();
+  });
+
+  function buildTable(p) {
+    const start = p.weight;
+    const target = p.targetWeight || start;
+    const goal = p.goal || 'maintain';
+    const deficit = p.deficit || 500;
+    const kgPerWeek = deficit * 7 / 7700;
+
+    document.getElementById('chipStart').textContent = start;
+    document.getElementById('chipTarget').textContent = target;
+    const diff = Math.abs(start - target);
+    document.getElementById('chipDiff').textContent = diff.toFixed(1);
+    document.getElementById('chipDir').textContent = goal === 'gain' ? 'gain' : 'lose';
+    document.getElementById('deficitNote').textContent = deficit;
+    document.getElementById('dirNote').textContent = goal === 'gain' ? 'surplus' : 'deficit';
+
+    const weeks = goal === 'maintain' ? 12 : Math.ceil(diff / kgPerWeek);
+    document.getElementById('chipWeeks').textContent = goal === 'maintain' ? '—' : weeks;
+
+    const tbody = document.getElementById('progBody');
+    tbody.innerHTML = '';
+    const now = new Date();
+
+    for (let w = 0; w <= Math.min(weeks, 52); w++) {
+      const date = new Date(now);
+      date.setDate(date.getDate() + w * 7);
+      const predicted = goal === 'lose'
+        ? Math.max(target, start - kgPerWeek * w)
+        : goal === 'gain'
+        ? Math.min(target, start + kgPerWeek * w)
+        : start;
+
+      const change = w === 0 ? '—' : (goal === 'lose' ? '−' : goal === 'gain' ? '+' : '') + (kgPerWeek * (w > 0 ? 1 : 0)).toFixed(2) + ' kg';
+      const reached = (goal === 'lose' && predicted <= target) || (goal === 'gain' && predicted >= target);
+
+      tbody.innerHTML += `<tr ${reached && w > 0 ? 'style="background:#f0faf4;font-weight:600;"' : ''}>
+        <td>${w === 0 ? 'Now' : 'Week ' + w}</td>
+        <td>${date.toLocaleDateString('en-IN', { day:'numeric', month:'short' })}</td>
+        <td>${predicted.toFixed(1)} kg ${reached && w > 0 ? '🎯' : ''}</td>
+        <td style="color:${goal === 'lose' ? 'var(--red)' : goal === 'gain' ? 'var(--green)' : 'var(--muted)'};">${change}</td>
+      </tr>`;
+
+      if (reached && w > 0) break;
+    }
+  }
+
+  window.logWeight = async function() {
+    const w = parseFloat(document.getElementById('actualWeight').value);
+    if (!w || !uid) return;
+    const today = new Date().toISOString().slice(0, 10);
+    await addDoc(collection(db, 'weightLogs'), { uid, date: today, weight: w, ts: Date.now() });
+    document.getElementById('weightSaved').style.display = 'inline';
+    document.getElementById('actualWeight').value = '';
+    setTimeout(() => document.getElementById('weightSaved').style.display = 'none', 2000);
+    loadWeightHistory();
+  };
+
+  async function loadWeightHistory() {
+    const snap = await getDocs(query(collection(db, 'weightLogs'), where('uid', '==', uid)));
+    let logs = [];
+    snap.forEach(d => logs.push(d.data()));
+    logs.sort((a, b) => a.ts - b.ts);
+    if (!logs.length) return;
+
+    document.getElementById('historyCard').style.display = '';
+    const p = profileData;
+    const kgPerWeek = ((p.deficit || 500) * 7 / 7700);
+    const start = p.weight;
+    const goal = p.goal || 'maintain';
+    const startTs = p.updatedAt || Date.now();
+
+    document.getElementById('historyBody').innerHTML = logs.map(l => {
+      const weeksIn = (l.ts - startTs) / (7 * 24 * 3600 * 1000);
+      const predicted = goal === 'lose' ? start - kgPerWeek * weeksIn
+        : goal === 'gain' ? start + kgPerWeek * weeksIn : start;
+      const diff = (l.weight - predicted).toFixed(1);
+      const diffStr = diff > 0 ? `+${diff} kg` : `${diff} kg`;
+      return `<tr>
+        <td>${new Date(l.ts).toLocaleDateString('en-IN', { day:'numeric', month:'short' })}</td>
+        <td>${l.weight} kg</td>
+        <td style="color:${Math.abs(diff) < 0.5 ? 'var(--green)' : 'var(--muted)'};">${diffStr}</td>
+      </tr>`;
+    }).join('');
+  }
+</script>
+<script>
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+</script>
+</body>
+</html>

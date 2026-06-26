@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — CaloriQ</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">CaloriQ</a>
+  <div class="nav-links">
+    <a href="dashboard.html" class="active">Dashboard</a>
+    <a href="tracker.html">Food Tracker</a>
+    <a href="planner.html">Goal Planner</a>
+    <a href="progress.html">Progress</a>
+  </div>
+  <div class="nav-user">
+    <span id="navName"></span>
+    <button onclick="logOut()">Log out</button>
+  </div>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="dashboard.html">Dashboard</a>
+  <a href="tracker.html">Food Tracker</a>
+  <a href="planner.html">Goal Planner</a>
+  <a href="progress.html">Progress</a>
+  <a href="#" onclick="logOut()">Log out</a>
+</div>
+
+<div class="page">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:10px;">
+    <div>
+      <h1 style="font-size:1.5rem;font-weight:700;" id="greeting">Good morning!</h1>
+      <p style="color:var(--muted);font-size:0.88rem;" id="todayDate"></p>
+    </div>
+    <a class="btn btn-green" href="tracker.html">+ Log food</a>
+  </div>
+
+  <!-- Calorie ring + stats -->
+  <div class="card">
+    <h2>Today's calories</h2>
+    <div class="ring-wrap">
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r="50" fill="none" stroke="var(--border)" stroke-width="12"/>
+        <circle id="ringCircle" cx="60" cy="60" r="50" fill="none" stroke="var(--green)" stroke-width="12"
+          stroke-linecap="round" stroke-dasharray="314" stroke-dashoffset="314"
+          transform="rotate(-90 60 60)" style="transition:stroke-dashoffset 0.8s;"/>
+        <text id="ringPct" x="60" y="64" text-anchor="middle" font-size="18" font-weight="700" fill="var(--text)">0%</text>
+      </svg>
+      <div class="ring-info">
+        <p>Consumed: <strong id="consumed">0 kcal</strong></p>
+        <p>Goal: <strong id="goalCal">— kcal</strong></p>
+        <p>Remaining: <strong id="remaining">— kcal</strong></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Macro bars -->
+  <div class="card">
+    <h2>Today's macros</h2>
+    <div class="macro-bar-wrap">
+      <div class="bar-label"><span>Protein</span><span id="proteinVal">0g / —g</span></div>
+      <div class="bar"><div class="bar-fill protein" id="proteinBar" style="width:0%"></div></div>
+    </div>
+    <div class="macro-bar-wrap" style="margin-top:12px;">
+      <div class="bar-label"><span>Carbohydrates</span><span id="carbsVal">0g / —g</span></div>
+      <div class="bar"><div class="bar-fill carbs" id="carbsBar" style="width:0%"></div></div>
+    </div>
+    <div class="macro-bar-wrap" style="margin-top:12px;">
+      <div class="bar-label"><span>Fat</span><span id="fatVal">0g / —g</span></div>
+      <div class="bar"><div class="bar-fill fat" id="fatBar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- Quick stats -->
+  <div class="stat-grid" id="statsGrid">
+    <div class="stat-chip"><div class="value" id="statTDEE">—</div><div class="label">Maintenance (kcal)</div></div>
+    <div class="stat-chip"><div class="value" id="statTarget">—</div><div class="label">Your daily target</div></div>
+    <div class="stat-chip"><div class="value" id="statBMI">—</div><div class="label">BMI</div></div>
+    <div class="stat-chip"><div class="value" id="statGoal">—</div><div class="label">Goal</div></div>
+  </div>
+
+  <!-- Recommended macros -->
+  <div class="card" id="macroCard" style="display:none;">
+    <h2>Recommended daily macros</h2>
+    <div id="macroRecs"></div>
+    <p style="font-size:0.8rem;color:var(--muted);margin-top:12px;" id="dietNote"></p>
+  </div>
+
+  <div style="text-align:center;margin-top:8px;">
+    <a href="planner.html" style="color:var(--green);font-size:0.9rem;text-decoration:none;">View full goal planner →</a>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { FIREBASE_CONFIG } from "./firebase-config.js";
+
+  const app = initializeApp(FIREBASE_CONFIG);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const hour = new Date().getHours();
+  document.getElementById('greeting').textContent =
+    hour < 12 ? 'Good morning!' : hour < 17 ? 'Good afternoon!' : 'Good evening!';
+  document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  window.logOut = async () => { await signOut(auth); window.location.href = 'index.html'; };
+
+  onAuthStateChanged(auth, async user => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    document.getElementById('navName').textContent = user.displayName || '';
+
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    if (!snap.exists() || !snap.data().tdee) { window.location.href = 'profile-setup.html'; return; }
+
+    const p = snap.data();
+    const tdee = p.tdee;
+    const goal = p.goal;
+    const deficit = goal === 'lose' ? 500 : goal === 'gain' ? 500 : 0;
+    const targetCal = goal === 'lose' ? tdee - deficit : goal === 'gain' ? tdee + deficit : tdee;
+
+    // Macro targets
+    const protein = goal === 'gain' ? Math.round(p.weight * 2) : Math.round(p.weight * 1.6);
+    const fat = Math.round(targetCal * 0.25 / 9);
+    const carbs = Math.round((targetCal - protein * 4 - fat * 9) / 4);
+
+    document.getElementById('statTDEE').textContent = tdee;
+    document.getElementById('statTarget').textContent = targetCal;
+    document.getElementById('statBMI').textContent = (p.weight / ((p.height / 100) ** 2)).toFixed(1);
+    document.getElementById('statGoal').textContent = goal === 'lose' ? 'Lose' : goal === 'gain' ? 'Gain' : 'Maintain';
+
+    // Macro recommendations
+    const macroCard = document.getElementById('macroCard');
+    macroCard.style.display = '';
+    document.getElementById('macroRecs').innerHTML = `
+      <div class="macro-bar-wrap">
+        <div class="bar-label"><span>Protein</span><span>${protein}g/day</span></div>
+        <div class="bar"><div class="bar-fill protein" style="width:100%"></div></div>
+      </div>
+      <div class="macro-bar-wrap" style="margin-top:12px;">
+        <div class="bar-label"><span>Carbohydrates</span><span>${carbs}g/day</span></div>
+        <div class="bar"><div class="bar-fill carbs" style="width:100%"></div></div>
+      </div>
+      <div class="macro-bar-wrap" style="margin-top:12px;">
+        <div class="bar-label"><span>Fat</span><span>${fat}g/day</span></div>
+        <div class="bar"><div class="bar-fill fat" style="width:100%"></div></div>
+      </div>`;
+
+    const dietNotes = {
+      veg: 'Vegetarian tip: combine dal + rice or paneer to hit your protein target.',
+      nonveg: 'Tip: chicken breast, eggs, and fish are excellent high-protein choices.',
+      vegan: 'Vegan tip: tofu, lentils, and chickpeas are great protein sources.',
+      eggetarian: 'Tip: eggs + dal together make a complete protein combination.'
+    };
+    document.getElementById('dietNote').textContent = dietNotes[p.diet] || '';
+
+    // Today's logs
+    const today = new Date().toISOString().slice(0, 10);
+    const logsSnap = await getDocs(query(collection(db, 'logs'), where('uid', '==', user.uid), where('date', '==', today)));
+    let consumed = 0, prot = 0, cb = 0, ft = 0;
+    logsSnap.forEach(d => {
+      const l = d.data();
+      consumed += l.cal || 0;
+      prot += l.protein || 0;
+      cb += l.carbs || 0;
+      ft += l.fat || 0;
+    });
+
+    document.getElementById('consumed').textContent = consumed + ' kcal';
+    document.getElementById('goalCal').textContent = targetCal + ' kcal';
+    document.getElementById('remaining').textContent = Math.max(0, targetCal - consumed) + ' kcal';
+
+    const pct = Math.min(100, Math.round(consumed / targetCal * 100));
+    document.getElementById('ringCircle').style.strokeDashoffset = 314 - (314 * pct / 100);
+    document.getElementById('ringPct').textContent = pct + '%';
+
+    document.getElementById('proteinVal').textContent = `${Math.round(prot)}g / ${protein}g`;
+    document.getElementById('carbsVal').textContent = `${Math.round(cb)}g / ${carbs}g`;
+    document.getElementById('fatVal').textContent = `${Math.round(ft)}g / ${fat}g`;
+
+    document.getElementById('proteinBar').style.width = Math.min(100, prot / protein * 100) + '%';
+    document.getElementById('carbsBar').style.width = Math.min(100, cb / carbs * 100) + '%';
+    document.getElementById('fatBar').style.width = Math.min(100, ft / fat * 100) + '%';
+  });
+</script>
+<script>
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+</script>
+</body>
+</html>

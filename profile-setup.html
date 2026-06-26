@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profile Setup — CaloriQ</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">CaloriQ</a>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="mobile-menu" id="mobileMenu">
+  <a href="dashboard.html">Dashboard</a>
+</div>
+
+<div class="page" style="max-width:560px;">
+  <h1 style="font-size:1.6rem;font-weight:700;margin-bottom:6px;">Set up your profile</h1>
+  <p style="color:var(--muted);font-size:0.9rem;margin-bottom:24px;">We use this to calculate your calorie needs accurately.</p>
+
+  <div class="card">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Age</label>
+        <input type="number" id="age" placeholder="Age" min="10" max="100" />
+      </div>
+      <div class="form-group">
+        <label>Gender</label>
+        <select id="gender">
+          <option value="">Select</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Height (cm)</label>
+        <input type="number" id="height" placeholder="cm" min="100" max="250" />
+      </div>
+      <div class="form-group">
+        <label>Current weight (kg)</label>
+        <input type="number" id="weight" placeholder="kg" min="20" max="300" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Activity level</label>
+      <select id="activity">
+        <option value="1.2">Sedentary (little or no exercise)</option>
+        <option value="1.375">Lightly active (1–3 days/week)</option>
+        <option value="1.55">Moderately active (3–5 days/week)</option>
+        <option value="1.725">Very active (6–7 days/week)</option>
+        <option value="1.9">Extra active (physical job + training)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Diet preference</label>
+      <div class="diet-toggle">
+        <button class="diet-btn selected" data-val="veg" onclick="selectDiet(this)">Vegetarian</button>
+        <button class="diet-btn" data-val="nonveg" onclick="selectDiet(this)">Non-Vegetarian</button>
+        <button class="diet-btn" data-val="vegan" onclick="selectDiet(this)">Vegan</button>
+        <button class="diet-btn" data-val="eggetarian" onclick="selectDiet(this)">Eggetarian</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Goal</label>
+      <div class="goal-cards">
+        <div class="goal-card selected" data-goal="lose" onclick="selectGoal(this)">
+          <div class="icon">📉</div>
+          <div class="name">Lose weight</div>
+          <div class="desc">Calorie deficit</div>
+        </div>
+        <div class="goal-card" data-goal="maintain" onclick="selectGoal(this)">
+          <div class="icon">⚖️</div>
+          <div class="name">Maintain</div>
+          <div class="desc">Stay at current weight</div>
+        </div>
+        <div class="goal-card" data-goal="gain" onclick="selectGoal(this)">
+          <div class="icon">📈</div>
+          <div class="name">Gain weight</div>
+          <div class="desc">Calorie surplus</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group" id="targetWeightGroup">
+      <label>Target weight (kg)</label>
+      <input type="number" id="targetWeight" placeholder="kg" min="20" max="300" />
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+    <button class="btn btn-green btn-full" onclick="saveProfile()">Save & continue</button>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { FIREBASE_CONFIG } from "./firebase-config.js";
+
+  const app = initializeApp(FIREBASE_CONFIG);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  let uid = null;
+  onAuthStateChanged(auth, user => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    uid = user.uid;
+  });
+
+  let diet = 'veg';
+  let goal = 'lose';
+
+  window.selectDiet = function(btn) {
+    document.querySelectorAll('.diet-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    diet = btn.dataset.val;
+  };
+
+  window.selectGoal = function(card) {
+    document.querySelectorAll('.goal-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    goal = card.dataset.goal;
+    document.getElementById('targetWeightGroup').style.display = goal === 'maintain' ? 'none' : '';
+  };
+
+  window.saveProfile = async function() {
+    const age = +document.getElementById('age').value;
+    const gender = document.getElementById('gender').value;
+    const height = +document.getElementById('height').value;
+    const weight = +document.getElementById('weight').value;
+    const activity = +document.getElementById('activity').value;
+    const targetWeight = +document.getElementById('targetWeight').value;
+    const errEl = document.getElementById('errorMsg');
+    errEl.style.display = 'none';
+
+    if (!age || !gender || !height || !weight) {
+      errEl.textContent = 'Please fill in all fields.';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (goal !== 'maintain' && !targetWeight) {
+      errEl.textContent = 'Please enter your target weight.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    // Mifflin-St Jeor BMR
+    let bmr = gender === 'male'
+      ? 10 * weight + 6.25 * height - 5 * age + 5
+      : 10 * weight + 6.25 * height - 5 * age - 161;
+    const tdee = Math.round(bmr * activity);
+
+    const profile = { age, gender, height, weight, activity, diet, goal, targetWeight: goal === 'maintain' ? weight : targetWeight, tdee, updatedAt: Date.now() };
+
+    await setDoc(doc(db, 'users', uid), profile, { merge: true });
+    window.location.href = 'dashboard.html';
+  };
+</script>
+<script>
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+</script>
+</body>
+</html>
