@@ -7,7 +7,6 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
 <nav>
   <a class="nav-logo" href="index.html">CaloriQ</a>
   <div class="nav-links">
@@ -17,26 +16,22 @@
     <a href="progress.html">Progress</a>
   </div>
   <div class="nav-user">
-    <span id="navName"></span>
-    <button onclick="logOut()">Log out</button>
+    <a href="profile-setup.html" style="font-size:0.85rem;color:var(--muted);text-decoration:none;border:1px solid var(--border);padding:5px 12px;border-radius:8px;">Edit profile</a>
   </div>
-  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
-    <span></span><span></span><span></span>
-  </button>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
 </nav>
 <div class="mobile-menu" id="mobileMenu">
   <a href="dashboard.html">Dashboard</a>
   <a href="tracker.html">Food Tracker</a>
   <a href="planner.html">Goal Planner</a>
   <a href="progress.html">Progress</a>
-  <a href="#" onclick="logOut()">Log out</a>
+  <a href="profile-setup.html">Edit profile</a>
 </div>
 
 <div class="page">
   <h1 style="font-size:1.4rem;font-weight:700;margin-bottom:6px;">Food Tracker</h1>
   <p style="color:var(--muted);font-size:0.88rem;margin-bottom:24px;" id="todayLabel"></p>
 
-  <!-- Tabs -->
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('search', this)">Search foods</button>
     <button class="tab-btn" onclick="switchTab('ingredients', this)">By ingredients</button>
@@ -51,11 +46,10 @@
         <div class="search-results" id="searchResults"></div>
       </div>
       <div id="selectedFood" style="display:none;" class="alert alert-green">
-        <strong id="selName"></strong> — <span id="selCal"></span> kcal
+        <strong id="selName"></strong> — <span id="selCal"></span> kcal per <span id="selUnit"></span>
         <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
           <label style="font-size:0.85rem;color:var(--muted);">Quantity:</label>
           <input type="number" id="qty" value="1" min="0.5" step="0.5" style="width:70px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;" />
-          <span id="unitLabel" style="font-size:0.85rem;color:var(--muted);"></span>
           <button class="btn btn-green" style="padding:7px 18px;font-size:0.88rem;" onclick="addFood()">Add</button>
         </div>
       </div>
@@ -85,7 +79,6 @@
     <div id="logList"><p style="color:var(--muted);font-size:0.88rem;">No food logged yet today.</p></div>
   </div>
 
-  <!-- Macro summary -->
   <div class="card">
     <h2>Today's macros</h2>
     <div class="macro-bar-wrap">
@@ -104,42 +97,24 @@
 </div>
 
 <script src="foods.js"></script>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, collection, addDoc, deleteDoc, doc, query, where, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { FIREBASE_CONFIG } from "./firebase-config.js";
-
-  const app = initializeApp(FIREBASE_CONFIG);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-
+<script src="storage.js"></script>
+<script>
   const today = new Date().toISOString().slice(0, 10);
   document.getElementById('todayLabel').textContent = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
 
-  window.logOut = async () => { await signOut(auth); window.location.href = 'index.html'; };
+  const profile = getProfile();
+  const tgtProtein = profile ? Math.round(profile.weight * 1.6) : 100;
+  const tgtCarbs = 200, tgtFat = 60;
 
-  let uid = null;
-  let profile = {};
   let selectedItem = null;
 
-  onAuthStateChanged(auth, async user => {
-    if (!user) { window.location.href = 'login.html'; return; }
-    uid = user.uid;
-    document.getElementById('navName').textContent = user.displayName || '';
-    const snap = await getDoc(doc(db, 'users', uid));
-    if (snap.exists()) profile = snap.data();
-    loadLog();
-    addIngredientRow();
-  });
-
-  // --- FOOD SEARCH ---
+  // --- SEARCH ---
   window.searchFood = function(q) {
     const res = document.getElementById('searchResults');
     if (!q.trim()) { res.classList.remove('open'); return; }
     const matches = FOODS.filter(f => f.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
     if (!matches.length) { res.classList.remove('open'); return; }
-    res.innerHTML = matches.map((f, i) =>
+    res.innerHTML = matches.map(f =>
       `<div class="search-result-item" onclick="selectFood(${FOODS.indexOf(f)})">
         <span>${f.name}</span>
         <span class="cal-hint">${f.cal} kcal / ${f.unit}</span>
@@ -151,40 +126,35 @@
     selectedItem = FOODS[idx];
     document.getElementById('selName').textContent = selectedItem.name;
     document.getElementById('selCal').textContent = selectedItem.cal;
-    document.getElementById('unitLabel').textContent = `× ${selectedItem.unit}`;
+    document.getElementById('selUnit').textContent = selectedItem.unit;
     document.getElementById('selectedFood').style.display = '';
     document.getElementById('searchResults').classList.remove('open');
     document.getElementById('foodSearch').value = selectedItem.name;
   };
 
-  window.addFood = async function() {
-    if (!selectedItem || !uid) return;
+  window.addFood = function() {
+    if (!selectedItem) return;
     const qty = parseFloat(document.getElementById('qty').value) || 1;
-    const scale = qty;
-    await addDoc(collection(db, 'logs'), {
-      uid, date: today,
+    addLog({
+      date: today,
       name: selectedItem.name + (qty !== 1 ? ` ×${qty}` : ''),
-      cal: Math.round(selectedItem.cal * scale),
-      protein: +(selectedItem.protein * scale).toFixed(1),
-      carbs: +(selectedItem.carbs * scale).toFixed(1),
-      fat: +(selectedItem.fat * scale).toFixed(1),
-      ts: Date.now()
+      cal: Math.round(selectedItem.cal * qty),
+      protein: +(selectedItem.protein * qty).toFixed(1),
+      carbs: +(selectedItem.carbs * qty).toFixed(1),
+      fat: +(selectedItem.fat * qty).toFixed(1)
     });
     document.getElementById('selectedFood').style.display = 'none';
     document.getElementById('foodSearch').value = '';
     selectedItem = null;
-    loadLog();
+    renderLog();
   };
 
   // --- INGREDIENTS ---
-  let ingRows = [];
-
-  window.addIngredientRow = function() {
+  function addIngredientRow() {
     const wrap = document.getElementById('ingredientList');
-    const id = Date.now();
-    ingRows.push(id);
+    const id = 'ing_' + Date.now();
     const div = document.createElement('div');
-    div.id = 'row_' + id;
+    div.id = id;
     div.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap;';
     div.innerHTML = `
       <select style="flex:1;min-width:140px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.88rem;background:var(--bg);" onchange="calcIngredients()">
@@ -192,102 +162,84 @@
         ${INGREDIENTS.map((ing, i) => `<option value="${i}">${ing.name}</option>`).join('')}
       </select>
       <input type="number" placeholder="Grams" min="1" style="width:80px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.88rem;" oninput="calcIngredients()" />
-      <button onclick="removeIngRow(${id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;">×</button>`;
+      <button onclick="document.getElementById('${id}').remove();calcIngredients();" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;">×</button>`;
     wrap.appendChild(div);
-  };
+  }
 
-  window.removeIngRow = function(id) {
-    document.getElementById('row_' + id)?.remove();
-    ingRows = ingRows.filter(r => r !== id);
-    calcIngredients();
-  };
+  window.addIngredientRow = addIngredientRow;
 
   window.calcIngredients = function() {
-    let totalCal = 0, totalP = 0, totalC = 0, totalF = 0;
+    let cal=0, p=0, c=0, f=0;
     document.querySelectorAll('#ingredientList > div').forEach(row => {
       const sel = row.querySelector('select');
-      const grams = parseFloat(row.querySelector('input')?.value) || 0;
-      if (sel.value === '' || !grams) return;
+      const g = parseFloat(row.querySelector('input')?.value) || 0;
+      if (!sel.value || !g) return;
       const ing = INGREDIENTS[+sel.value];
-      const factor = grams / 100;
-      totalCal += ing.cal * factor;
-      totalP += ing.protein * factor;
-      totalC += ing.carbs * factor;
-      totalF += ing.fat * factor;
+      cal += ing.cal * g / 100;
+      p += ing.protein * g / 100;
+      c += ing.carbs * g / 100;
+      f += ing.fat * g / 100;
     });
-    document.getElementById('ingCalcResult').innerHTML = totalCal
-      ? `<strong>${Math.round(totalCal)} kcal</strong> &nbsp;|&nbsp; Protein: ${totalP.toFixed(1)}g &nbsp;|&nbsp; Carbs: ${totalC.toFixed(1)}g &nbsp;|&nbsp; Fat: ${totalF.toFixed(1)}g`
+    document.getElementById('ingCalcResult').innerHTML = cal
+      ? `<strong>${Math.round(cal)} kcal</strong> &nbsp;|&nbsp; Protein: ${p.toFixed(1)}g &nbsp;|&nbsp; Carbs: ${c.toFixed(1)}g &nbsp;|&nbsp; Fat: ${f.toFixed(1)}g`
       : 'Enter ingredients above to see calories.';
-    window._ingTotals = { cal: Math.round(totalCal), protein: +totalP.toFixed(1), carbs: +totalC.toFixed(1), fat: +totalF.toFixed(1) };
+    window._ingTotals = { cal: Math.round(cal), protein: +p.toFixed(1), carbs: +c.toFixed(1), fat: +f.toFixed(1) };
   };
 
-  window.logIngredients = async function() {
+  window.logIngredients = function() {
     const t = window._ingTotals;
-    if (!t || !t.cal || !uid) return;
-    await addDoc(collection(db, 'logs'), { uid, date: today, name: 'Custom meal', ...t, ts: Date.now() });
-    loadLog();
+    if (!t || !t.cal) return;
+    addLog({ date: today, name: 'Custom meal', ...t });
     document.getElementById('ingredientList').innerHTML = '';
-    ingRows = [];
     addIngredientRow();
     calcIngredients();
+    renderLog();
   };
 
-  // --- LOG ---
-  async function loadLog() {
-    const snap = await getDocs(query(collection(db, 'logs'), where('uid', '==', uid), where('date', '==', today)));
-    let items = [];
-    snap.forEach(d => items.push({ id: d.id, ...d.data() }));
-    items.sort((a, b) => a.ts - b.ts);
-
-    let totalCal = 0, totalP = 0, totalC = 0, totalF = 0;
-    items.forEach(i => { totalCal += i.cal; totalP += i.protein; totalC += i.carbs; totalF += i.fat; });
+  // --- LOG RENDER ---
+  function renderLog() {
+    const logs = getLogs(today);
+    let totalCal=0, totalP=0, totalC=0, totalF=0;
+    logs.forEach(l => { totalCal+=l.cal; totalP+=l.protein; totalC+=l.carbs; totalF+=l.fat; });
 
     const logList = document.getElementById('logList');
-    if (!items.length) {
-      logList.innerHTML = '<p style="color:var(--muted);font-size:0.88rem;">No food logged yet today.</p>';
-    } else {
-      logList.innerHTML = items.map(i => `
+    logList.innerHTML = logs.length
+      ? logs.map(l => `
         <div class="food-log-item">
           <div>
-            <div class="name">${i.name}</div>
-            <div style="font-size:0.78rem;color:var(--muted);">P: ${i.protein}g · C: ${i.carbs}g · F: ${i.fat}g</div>
+            <div class="name">${l.name}</div>
+            <div style="font-size:0.78rem;color:var(--muted);">P: ${l.protein}g · C: ${l.carbs}g · F: ${l.fat}g</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
-            <span class="cal">${i.cal} kcal</span>
-            <button class="remove" onclick="removeLog('${i.id}')">×</button>
+            <span class="cal">${l.cal} kcal</span>
+            <button class="remove" onclick="removeLog(${l.id});renderLog();">×</button>
           </div>
-        </div>`).join('');
-    }
+        </div>`).join('')
+      : '<p style="color:var(--muted);font-size:0.88rem;">No food logged yet today.</p>';
 
     document.getElementById('totalCalLabel').textContent = totalCal + ' kcal';
-
-    const tgt = { protein: profile.weight ? Math.round(profile.weight * 1.6) : 100, carbs: 200, fat: 60 };
     document.getElementById('pVal').textContent = Math.round(totalP) + 'g';
     document.getElementById('cVal').textContent = Math.round(totalC) + 'g';
     document.getElementById('fVal').textContent = Math.round(totalF) + 'g';
-    document.getElementById('pBar').style.width = Math.min(100, totalP / tgt.protein * 100) + '%';
-    document.getElementById('cBar').style.width = Math.min(100, totalC / tgt.carbs * 100) + '%';
-    document.getElementById('fBar').style.width = Math.min(100, totalF / tgt.fat * 100) + '%';
+    document.getElementById('pBar').style.width = Math.min(100, totalP / tgtProtein * 100) + '%';
+    document.getElementById('cBar').style.width = Math.min(100, totalC / tgtCarbs * 100) + '%';
+    document.getElementById('fBar').style.width = Math.min(100, totalF / tgtFat * 100) + '%';
   }
 
-  window.removeLog = async function(id) {
-    await deleteDoc(doc(db, 'logs', id));
-    loadLog();
-  };
-</script>
-<script>
-  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+  renderLog();
+  addIngredientRow();
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.search-wrap')) document.getElementById('searchResults').classList.remove('open');
+  });
+
   function switchTab(tab, btn) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tabSearch').style.display = tab === 'search' ? '' : 'none';
     document.getElementById('tabIngredients').style.display = tab === 'ingredients' ? '' : 'none';
   }
-  document.addEventListener('click', e => {
-    if (!e.target.closest('.search-wrap')) {
-      document.getElementById('searchResults')?.classList.remove('open');
-    }
-  });
+  function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
 </script>
 </body>
 </html>

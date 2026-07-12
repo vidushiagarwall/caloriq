@@ -7,15 +7,21 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
 <nav>
   <a class="nav-logo" href="index.html">CaloriQ</a>
-  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu">
-    <span></span><span></span><span></span>
-  </button>
+  <div class="nav-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="tracker.html">Food Tracker</a>
+    <a href="planner.html">Goal Planner</a>
+    <a href="progress.html">Progress</a>
+  </div>
+  <button class="hamburger" onclick="toggleMenu()" aria-label="Menu"><span></span><span></span><span></span></button>
 </nav>
 <div class="mobile-menu" id="mobileMenu">
   <a href="dashboard.html">Dashboard</a>
+  <a href="tracker.html">Food Tracker</a>
+  <a href="planner.html">Goal Planner</a>
+  <a href="progress.html">Progress</a>
 </div>
 
 <div class="page" style="max-width:560px;">
@@ -25,9 +31,15 @@
   <div class="card">
     <div class="form-row">
       <div class="form-group">
+        <label>Your name</label>
+        <input type="text" id="name" placeholder="Name" />
+      </div>
+      <div class="form-group">
         <label>Age</label>
         <input type="number" id="age" placeholder="Age" min="10" max="100" />
       </div>
+    </div>
+    <div class="form-row">
       <div class="form-group">
         <label>Gender</label>
         <select id="gender">
@@ -36,17 +48,14 @@
           <option value="female">Female</option>
         </select>
       </div>
-    </div>
-
-    <div class="form-row">
       <div class="form-group">
         <label>Height (cm)</label>
         <input type="number" id="height" placeholder="cm" min="100" max="250" />
       </div>
-      <div class="form-group">
-        <label>Current weight (kg)</label>
-        <input type="number" id="weight" placeholder="kg" min="20" max="300" />
-      </div>
+    </div>
+    <div class="form-group">
+      <label>Current weight (kg)</label>
+      <input type="number" id="weight" placeholder="kg" min="20" max="300" />
     </div>
 
     <div class="form-group">
@@ -101,39 +110,51 @@
   </div>
 </div>
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { FIREBASE_CONFIG } from "./firebase-config.js";
-
-  const app = initializeApp(FIREBASE_CONFIG);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-
-  let uid = null;
-  onAuthStateChanged(auth, user => {
-    if (!user) { window.location.href = 'login.html'; return; }
-    uid = user.uid;
-  });
-
+<script src="storage.js"></script>
+<script>
   let diet = 'veg';
   let goal = 'lose';
 
-  window.selectDiet = function(btn) {
+  // Pre-fill if profile exists
+  const existing = getProfile();
+  if (existing) {
+    if (existing.name) document.getElementById('name').value = existing.name;
+    if (existing.age) document.getElementById('age').value = existing.age;
+    if (existing.gender) document.getElementById('gender').value = existing.gender;
+    if (existing.height) document.getElementById('height').value = existing.height;
+    if (existing.weight) document.getElementById('weight').value = existing.weight;
+    if (existing.activity) document.getElementById('activity').value = existing.activity;
+    if (existing.targetWeight) document.getElementById('targetWeight').value = existing.targetWeight;
+    if (existing.diet) {
+      diet = existing.diet;
+      document.querySelectorAll('.diet-btn').forEach(b => {
+        b.classList.toggle('selected', b.dataset.val === diet);
+      });
+    }
+    if (existing.goal) {
+      goal = existing.goal;
+      document.querySelectorAll('.goal-card').forEach(c => {
+        c.classList.toggle('selected', c.dataset.goal === goal);
+      });
+      if (goal === 'maintain') document.getElementById('targetWeightGroup').style.display = 'none';
+    }
+  }
+
+  function selectDiet(btn) {
     document.querySelectorAll('.diet-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
     diet = btn.dataset.val;
-  };
+  }
 
-  window.selectGoal = function(card) {
+  function selectGoal(card) {
     document.querySelectorAll('.goal-card').forEach(c => c.classList.remove('selected'));
     card.classList.add('selected');
     goal = card.dataset.goal;
     document.getElementById('targetWeightGroup').style.display = goal === 'maintain' ? 'none' : '';
-  };
+  }
 
-  window.saveProfile = async function() {
+  function saveProfile() {
+    const name = document.getElementById('name').value.trim();
     const age = +document.getElementById('age').value;
     const gender = document.getElementById('gender').value;
     const height = +document.getElementById('height').value;
@@ -143,7 +164,7 @@
     const errEl = document.getElementById('errorMsg');
     errEl.style.display = 'none';
 
-    if (!age || !gender || !height || !weight) {
+    if (!name || !age || !gender || !height || !weight) {
       errEl.textContent = 'Please fill in all fields.';
       errEl.style.display = 'block';
       return;
@@ -154,19 +175,15 @@
       return;
     }
 
-    // Mifflin-St Jeor BMR
-    let bmr = gender === 'male'
+    const bmr = gender === 'male'
       ? 10 * weight + 6.25 * height - 5 * age + 5
       : 10 * weight + 6.25 * height - 5 * age - 161;
     const tdee = Math.round(bmr * activity);
 
-    const profile = { age, gender, height, weight, activity, diet, goal, targetWeight: goal === 'maintain' ? weight : targetWeight, tdee, updatedAt: Date.now() };
-
-    await setDoc(doc(db, 'users', uid), profile, { merge: true });
+    saveProfile({ name, age, gender, height, weight, activity, diet, goal, targetWeight: goal === 'maintain' ? weight : targetWeight, tdee });
     window.location.href = 'dashboard.html';
-  };
-</script>
-<script>
+  }
+
   function toggleMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
 </script>
 </body>
